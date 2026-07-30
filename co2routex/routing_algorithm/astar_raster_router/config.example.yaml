@@ -1,0 +1,21 @@
+raster_path: data/spatial_resistance.tif
+
+# Use either workbook_path OR nodes_csv + mode_csvs.
+workbook_path: data/network_inputs.xlsx
+# nodes_csv: data/nodes.csv
+# mode_csvs:
+#   pipeline: data/pipeline.csv
+#   truck: data/truck.csv
+#   railway: data/railway.csv
+
+mode_sheets:
+  - pipeline
+
+output_dir: output
+nodes_crs: EPSG:4326
+connectivity: 8
+prevent_corner_cutting: true
+snap_radius_cells: 10
+zero_is_barrier: false
+cache_reverse_routes: true
+
