@@ -1,0 +1,34 @@
+# Paths are resolved relative to this YAML file.
+workbook_path: "../astar_raster_router/examples/node_metrics_test.xlsx"
+
+nodes_sheet: "nodes"
+mode_sheets:
+  - pipeline
+
+# Coordinate reference system used by longitude and latitude columns.
+nodes_crs: "EPSG:4326"
+
+# Recommended research baseline: retain every type-eligible pair.
+method: "all_eligible"
+
+emitter_types:
+  - cement
+  - refinery
+  - waste_to_energy
+
+storage_types:
+  - storage
+  - utilisation
+
+transport_type: "transport"
+allow_transport_to_transport: true
+
+# Baseline: emitter-to-emitter connections are not generated.
+# Set to "toward_nearest_destination" to activate the optional rule.
+emitter_to_emitter_rule: "disabled"
+emitter_to_emitter_max_detour_factor: 1.5
+
+# Used only by nearest_k_with_relative_threshold.
+k: 3
+relative_distance_factor: 1.5
+max_distance_km: null
