@@ -131,7 +131,7 @@ def load_network(
         )
 
     with pd.ExcelFile(workbook_path) as workbook:
-        required_sheets = {"nodes", *modes}
+        required_sheets = {settings.nodes_sheet, *modes}
         missing_sheets = required_sheets - set(workbook.sheet_names)
 
         if missing_sheets:
@@ -142,7 +142,7 @@ def load_network(
 
         nodes_frame = pd.read_excel(
             workbook,
-            sheet_name="nodes",
+            sheet_name=settings.nodes_sheet,
         )
 
         matrices = {
@@ -282,21 +282,16 @@ def _parse_nodes(frame: pd.DataFrame) -> dict[str, Node]:
             }
         }
 
-        attributes.update(
-            {
-                "altitude": altitude,
-                "annual_flux": annual_flux,
-                "node_type": node_type or None,
-                "country_code": country_code or None,
-            }
-        )
-
         nodes[node_id] = Node(
             node_id=node_id,
             node_name=node_name,
             longitude=longitude,
             latitude=latitude,
-            attributes=attributes,
+            altitude=altitude,
+            annual_flux=annual_flux,
+            node_type=node_type or None,
+            country_code=country_code or None,
+            additional_attributes=attributes,
         )
 
     if not nodes:

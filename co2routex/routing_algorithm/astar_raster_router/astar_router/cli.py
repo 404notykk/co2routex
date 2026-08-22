@@ -43,6 +43,29 @@ def _required_path(
     return _resolve(base, str(value))
 
 
+def _read_string(
+    config: dict[str, Any],
+    key: str,
+    default: str,
+) -> str:
+    """Read and validate a non-empty string setting."""
+    value = config.get(key, default)
+
+    if value is None:
+        raise ValueError(
+            f"Configuration value '{key}' cannot be empty"
+        )
+
+    result = str(value).strip()
+
+    if not result:
+        raise ValueError(
+            f"Configuration value '{key}' cannot be empty"
+        )
+
+    return result
+
+
 def _read_boolean(
     config: dict[str, Any],
     key: str,
@@ -83,12 +106,21 @@ def _read_integer(
             f"Configuration value '{key}' must be an integer"
         )
 
-    try:
-        result = int(value)
-    except (TypeError, ValueError) as error:
+    if isinstance(value, int):
+        result = value
+    elif isinstance(value, str):
+        normalized = value.strip()
+
+        try:
+            result = int(normalized)
+        except ValueError as error:
+            raise ValueError(
+                f"Configuration value '{key}' must be an integer"
+            ) from error
+    else:
         raise ValueError(
             f"Configuration value '{key}' must be an integer"
-        ) from error
+        )
 
     if minimum is not None and result < minimum:
         raise ValueError(
@@ -96,6 +128,58 @@ def _read_integer(
         )
 
     return result
+
+
+def _read_mode_sheets(
+    config: dict[str, Any],
+    pipeline_sheet: str,
+) -> tuple[str, ...]:
+    """
+    Read the transport-mode worksheet names.
+
+    If mode_sheets is absent, fall back to pipeline_sheet for
+    compatibility with the original pipeline-only configuration.
+    """
+    value = config.get("mode_sheets")
+
+    if value is None:
+        return (pipeline_sheet,)
+
+    if isinstance(value, str):
+        raise ValueError(
+            "Configuration value 'mode_sheets' must be a YAML list, "
+            "for example:\nmode_sheets:\n  - pipeline"
+        )
+
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(
+            "Configuration value 'mode_sheets' must be a list"
+        )
+
+    mode_sheets: list[str] = []
+
+    for index, sheet in enumerate(value):
+        if not isinstance(sheet, str) or not sheet.strip():
+            raise ValueError(
+                "Every entry in 'mode_sheets' must be a "
+                f"non-empty string; invalid entry at index {index}"
+            )
+
+        mode_sheets.append(sheet.strip())
+
+    if not mode_sheets:
+        raise ValueError(
+            "Configuration value 'mode_sheets' must contain "
+            "at least one worksheet name"
+        )
+
+    if len(set(mode_sheets)) != len(mode_sheets):
+        raise ValueError(
+            "Configuration value 'mode_sheets' cannot contain "
+            "duplicate worksheet names"
+        )
+
+    return tuple(mode_sheets)
 
 
 def _validate_input_files(
@@ -157,6 +241,8 @@ def load_settings(config_path: Path) -> Settings:
             "The configuration file must contain a YAML mapping"
         )
 
+    # Relative input and output paths are anchored to the directory
+    # containing the YAML configuration file.
     base = config_path.parent
 
     raster_path = _required_path(
@@ -185,23 +271,28 @@ def load_settings(config_path: Path) -> Settings:
             f"Output path exists but is not a directory: {output_dir}"
         )
 
-    pipeline_sheet = str(
-        config.get("pipeline_sheet", "pipeline")
-    ).strip()
+    nodes_sheet = _read_string(
+        config,
+        "nodes_sheet",
+        "nodes",
+    )
 
-    if not pipeline_sheet:
-        raise ValueError(
-            "Configuration value 'pipeline_sheet' cannot be empty"
-        )
+    pipeline_sheet = _read_string(
+        config,
+        "pipeline_sheet",
+        "pipeline",
+    )
 
-    nodes_crs = str(
-        config.get("nodes_crs", "EPSG:4326")
-    ).strip()
+    mode_sheets = _read_mode_sheets(
+        config,
+        pipeline_sheet,
+    )
 
-    if not nodes_crs:
-        raise ValueError(
-            "Configuration value 'nodes_crs' cannot be empty"
-        )
+    nodes_crs = _read_string(
+        config,
+        "nodes_crs",
+        "EPSG:4326",
+    )
 
     connectivity = _read_integer(
         config,
@@ -221,14 +312,25 @@ def load_settings(config_path: Path) -> Settings:
         minimum=0,
     )
 
-    settings = Settings(
+    output_workbook_name = _read_string(
+        config,
+        "output_workbook_name",
+        "node_metrics_routed.xlsx",
+    )
+
+    routes_filename = _read_string(
+        config,
+        "routes_filename",
+        "routes.gpkg",
+    )
+
+    return Settings(
         raster_path=raster_path,
         workbook_path=workbook_path,
         output_dir=output_dir,
-
-        # The A* raster router processes only the pipeline worksheet.
-        mode_sheets=[pipeline_sheet],
-
+        nodes_sheet=nodes_sheet,
+        pipeline_sheet=pipeline_sheet,
+        mode_sheets=mode_sheets,
         nodes_crs=nodes_crs,
         connectivity=connectivity,
         prevent_corner_cutting=_read_boolean(
@@ -247,21 +349,16 @@ def load_settings(config_path: Path) -> Settings:
             "cache_reverse_routes",
             True,
         ),
-
-        # These fields remain temporarily for compatibility with the
-        # existing Settings model. The CLI does not support CSV input.
-        nodes_csv=None,
-        mode_csvs=None,
+        output_workbook_name=output_workbook_name,
+        routes_filename=routes_filename,
     )
-
-    return settings
 
 
 def main() -> None:
     """Run the A* raster-routing command-line interface."""
     parser = argparse.ArgumentParser(
         description=(
-            "Calculate spatially least-resistant CO2 pipeline routes "
+            "Calculate spatially least-resistant CO2 routes "
             "using A* on a resistance raster"
         )
     )
@@ -296,10 +393,15 @@ def main() -> None:
         settings.workbook_path,
     )
 
+    logging.info(
+        "Mode worksheets selected for processing: %s",
+        ", ".join(settings.mode_sheets),
+    )
+
     records = run(settings)
 
     succeeded = sum(
-        record["status"] == "ok"
+        record.get("status") == "ok"
         for record in records
     )
     failed = len(records) - succeeded
@@ -314,3 +416,7 @@ def main() -> None:
         f"Completed {succeeded}/{len(records)} routes. "
         f"Outputs: {settings.output_dir}"
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -33,6 +33,11 @@ class Node:
         if not isinstance(self.node_id, str) or not self.node_id.strip():
             raise ValueError("node_id must be a non-empty string")
 
+        if not isinstance(self.node_name, str):
+            raise TypeError(
+                f"node_name must be a string for node {self.node_id}"
+            )
+
         if not math.isfinite(self.longitude):
             raise ValueError(
                 f"longitude must be finite for node {self.node_id}"
@@ -75,7 +80,10 @@ class Node:
 
         if (
             self.node_type is not None
-            and not self.node_type.strip()
+            and (
+                not isinstance(self.node_type, str)
+                or not self.node_type.strip()
+            )
         ):
             raise ValueError(
                 f"node_type cannot be an empty string for "
@@ -84,10 +92,19 @@ class Node:
 
         if (
             self.country_code is not None
-            and not self.country_code.strip()
+            and (
+                not isinstance(self.country_code, str)
+                or not self.country_code.strip()
+            )
         ):
             raise ValueError(
                 f"country_code cannot be an empty string for "
+                f"node {self.node_id}"
+            )
+
+        if not isinstance(self.additional_attributes, dict):
+            raise TypeError(
+                f"additional_attributes must be a dictionary for "
                 f"node {self.node_id}"
             )
 
@@ -173,7 +190,14 @@ class Settings:
     output_dir: Path
 
     nodes_sheet: str = "nodes"
+
+    # Retained for compatibility with the original
+    # pipeline-only configuration.
     pipeline_sheet: str = "pipeline"
+
+    # Transport-mode sheets processed by the current router.
+    mode_sheets: tuple[str, ...] = ("pipeline",)
+
     nodes_crs: str = "EPSG:4326"
 
     connectivity: int = 8
@@ -188,31 +212,109 @@ class Settings:
     def __post_init__(self) -> None:
         """Validate configuration values independent of file existence."""
         if not isinstance(self.raster_path, Path):
-            raise TypeError("raster_path must be a pathlib.Path")
+            raise TypeError(
+                "raster_path must be a pathlib.Path"
+            )
 
         if not isinstance(self.workbook_path, Path):
-            raise TypeError("workbook_path must be a pathlib.Path")
+            raise TypeError(
+                "workbook_path must be a pathlib.Path"
+            )
 
         if not isinstance(self.output_dir, Path):
-            raise TypeError("output_dir must be a pathlib.Path")
+            raise TypeError(
+                "output_dir must be a pathlib.Path"
+            )
 
-        if not self.nodes_sheet.strip():
-            raise ValueError("nodes_sheet cannot be blank")
+        if (
+            not isinstance(self.nodes_sheet, str)
+            or not self.nodes_sheet.strip()
+        ):
+            raise ValueError(
+                "nodes_sheet cannot be blank"
+            )
 
-        if not self.pipeline_sheet.strip():
-            raise ValueError("pipeline_sheet cannot be blank")
+        if (
+            not isinstance(self.pipeline_sheet, str)
+            or not self.pipeline_sheet.strip()
+        ):
+            raise ValueError(
+                "pipeline_sheet cannot be blank"
+            )
 
         if self.nodes_sheet == self.pipeline_sheet:
             raise ValueError(
                 "nodes_sheet and pipeline_sheet must be different"
             )
 
-        if not self.nodes_crs.strip():
-            raise ValueError("nodes_crs cannot be blank")
+        if isinstance(self.mode_sheets, str):
+            raise TypeError(
+                "mode_sheets must be a sequence of sheet names, "
+                "not a single string"
+            )
+
+        try:
+            normalized_mode_sheets = tuple(self.mode_sheets)
+        except TypeError as error:
+            raise TypeError(
+                "mode_sheets must be an iterable of sheet names"
+            ) from error
+
+        if not normalized_mode_sheets:
+            raise ValueError(
+                "mode_sheets must contain at least one sheet"
+            )
+
+        if any(
+            not isinstance(sheet, str) or not sheet.strip()
+            for sheet in normalized_mode_sheets
+        ):
+            raise ValueError(
+                "Every mode_sheets entry must be a non-empty string"
+            )
+
+        normalized_mode_sheets = tuple(
+            sheet.strip()
+            for sheet in normalized_mode_sheets
+        )
+
+        if (
+            len(set(normalized_mode_sheets))
+            != len(normalized_mode_sheets)
+        ):
+            raise ValueError(
+                "mode_sheets cannot contain duplicate sheet names"
+            )
+
+        if self.nodes_sheet in normalized_mode_sheets:
+            raise ValueError(
+                "nodes_sheet cannot also be included in mode_sheets"
+            )
+
+        # Settings is frozen, so object.__setattr__ is required
+        # to store the validated tuple.
+        object.__setattr__(
+            self,
+            "mode_sheets",
+            normalized_mode_sheets,
+        )
+
+        if (
+            not isinstance(self.nodes_crs, str)
+            or not self.nodes_crs.strip()
+        ):
+            raise ValueError(
+                "nodes_crs cannot be blank"
+            )
 
         if self.connectivity not in {4, 8}:
             raise ValueError(
                 "connectivity must be either 4 or 8"
+            )
+
+        if not isinstance(self.snap_radius_cells, int):
+            raise TypeError(
+                "snap_radius_cells must be an integer"
             )
 
         if self.snap_radius_cells < 0:
@@ -220,7 +322,25 @@ class Settings:
                 "snap_radius_cells cannot be negative"
             )
 
-        if not self.output_workbook_name.strip():
+        if not isinstance(self.prevent_corner_cutting, bool):
+            raise TypeError(
+                "prevent_corner_cutting must be a boolean"
+            )
+
+        if not isinstance(self.zero_is_barrier, bool):
+            raise TypeError(
+                "zero_is_barrier must be a boolean"
+            )
+
+        if not isinstance(self.cache_reverse_routes, bool):
+            raise TypeError(
+                "cache_reverse_routes must be a boolean"
+            )
+
+        if (
+            not isinstance(self.output_workbook_name, str)
+            or not self.output_workbook_name.strip()
+        ):
             raise ValueError(
                 "output_workbook_name cannot be blank"
             )
@@ -233,7 +353,10 @@ class Settings:
                 "output_workbook_name must use the .xlsx extension"
             )
 
-        if not self.routes_filename.strip():
+        if (
+            not isinstance(self.routes_filename, str)
+            or not self.routes_filename.strip()
+        ):
             raise ValueError(
                 "routes_filename cannot be blank"
             )

@@ -1,0 +1,15 @@
+raster_path: "../../database/pipeline/spatial_cost_resistance/SCRM_100_NL.tif"
+
+workbook_path: "examples/node_metrics_test.xlsx"
+
+mode_sheets:
+  - pipeline
+
+output_dir: "output"
+
+nodes_crs: "EPSG:4326"
+connectivity: 8
+prevent_corner_cutting: true
+snap_radius_cells: 10
+zero_is_barrier: false
+cache_reverse_routes: true
