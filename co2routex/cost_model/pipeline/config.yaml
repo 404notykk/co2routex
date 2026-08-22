@@ -1,0 +1,22 @@
+# Routed workbook produced by the A* pipeline router.
+workbook_path: ../../routing_algorithm/astar_raster_router/output/node_metrics_routed.xlsx
+output_dir: outputs
+output_workbook_name: node_metrics_costed.xlsx
+detailed_workbook_name: pipeline_cost_details.xlsx
+route_metrics_sheet: pipeline_route_metrics
+
+# Temporary capacity range. These are capacity bounds, not diameter inputs.
+capacity_min_t_per_h: 18.0
+capacity_max_t_per_h: 4050.0
+capacity_range_basis: temporary_DN_square_law_proxy
+
+# Adopted Oeuvray engineering assumptions.
+terrain: Onshore
+timeframe: mid-term
+electricity_price_eur_per_mwh: 60.0
+operating_hours_per_year: 8000.0
+p_inlet_bar: 10.0
+p_outlet_bar: 70.0
+discount_rate: 0.10
+currency: EUR
+cost_reference_year: 2021
