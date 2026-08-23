@@ -1,0 +1,7 @@
+output/
+test_output/
+test_data/
+*.gpkg-shm
+*.gpkg-wal
+__pycache__/
+.pytest_cache/

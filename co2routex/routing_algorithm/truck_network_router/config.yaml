@@ -1,0 +1,49 @@
+# All relative paths are resolved from the location of this YAML file.
+
+workbook_path: ../astar_raster_router/examples/node_metrics_test.xlsx
+
+# Leave null to update workbook_path itself. Set a different path to preserve
+# the input workbook and write a routed copy.
+output_workbook_path: null
+
+nodes_sheet: nodes
+truck_sheet: truck
+nodes_crs: EPSG:4326
+
+# A single European metric CRS keeps snapping and distance calculations in metres.
+working_crs: EPSG:3035
+output_crs: EPSG:4326
+
+networks:
+  NL:
+    path: ../../database/container_based_truck/NL_truck_network.gpkg
+    layer: truck_network
+  NO:
+    path: ../../database/container_based_truck/NO_truck_network.gpkg
+    layer: truck_network
+  DE:
+    path: ../../database/container_based_truck/DE_truck_network.gpkg
+    layer: truck_network
+
+routing:
+  # Temporary value: tune after inspecting node-to-network distances.
+  maximum_snap_distance_m: 5000
+  respect_oneway: true
+
+  # Add straight node-to-network connectors to the metric stored in the sheet.
+  include_snap_distance_in_metric: true
+
+connection_rules:
+  # baseline: all distinct same-country ordered pairs
+  # directed_chain: emitters -> emitters/transport/storage;
+  #                 transport -> transport/storage; storage -> none
+  policy: baseline
+
+  # generated: build candidates using the embedded rules above
+  # existing_nonzero: route only cells already non-zero in the truck sheet
+  candidate_source: generated
+
+outputs:
+  directory: output
+  routes_filename: truck_routes.gpkg
+  summary_filename: truck_route_summary.csv

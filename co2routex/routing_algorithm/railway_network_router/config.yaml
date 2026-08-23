@@ -1,0 +1,29 @@
+distance_calculation:
+  country_code: NL
+  railway_path: ../../database/container_based_train/railway_NL.gpkg
+  stations_path: ../../database/container_based_train/railway_stations_NL.gpkg
+  output_routes_path: ../../database/container_based_train/station_routes_NL.gpkg
+  output_distances_path: ../../database/container_based_train/station_distances_NL.csv
+  routing_crs: EPSG:3035
+  output_routes_layer: station_routes
+  station_id_field: station_id
+  station_name_field: station_name
+
+railway_request:
+  requested: true
+  workbook_path: ../connection_algorithm/node_metrics.xlsx
+  country_code: NL
+  stations_path: ../../database/container_based_train/railway_stations_NL.gpkg
+  distances_path: ../../database/container_based_train/station_distances_NL.csv
+  nodes_crs: EPSG:4326
+  station_id_field: station_id
+  station_name_field: station_name
+  maximum_search_radius_km: 5.0
+  station_node_type: transport
+  station_altitude: 10.0
+  matrix_sheets:
+    - pipeline
+    - truck
+    - railway
+  reset_railway_matrix: true
+
