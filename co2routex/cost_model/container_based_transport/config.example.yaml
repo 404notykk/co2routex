@@ -1,0 +1,23 @@
+# Paths are resolved relative to this YAML file.
+workbook_path: ../../routing_algorithm/astar_raster_router/output/node_metrics_routed.xlsx
+output_dir: outputs
+
+combined_output_workbook: node_metrics_transport_costed.xlsx
+truck_output_workbook: node_metrics_truck_costed.xlsx
+railway_output_workbook: node_metrics_railway_costed.xlsx
+
+truck_sheet: truck
+railway_sheet: railway
+
+# UC_truck(d) = 5.58 / d + 0.15 EUR/(t*km)
+truck_fixed_eur_per_t: 5.58
+truck_distance_rate_eur_per_t_km: 0.15
+
+# UC_railway(d) = 28.9 / d + 0.07 EUR/(t*km)
+railway_fixed_eur_per_t: 28.9
+railway_distance_rate_eur_per_t_km: 0.07
+
+currency: EUR
+cost_reference_year: null
+source_note: Container-based transport regressions supplied with CO2RouteX
+
