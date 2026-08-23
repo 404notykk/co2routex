@@ -10,12 +10,35 @@ from uuid import uuid4
 
 import fiona
 from openpyxl import load_workbook
+from openpyxl.styles import Font
 from pyproj import CRS
 
 from .models import Settings
 
 
 ROUTE_LAYER_NAME = "pipeline_routes"
+ROUTE_METRICS_SHEET = "pipeline_route_metrics"
+
+ROUTE_METRICS_COLUMNS = (
+    ("mode", "mode"),
+    ("from_id", "from_id"),
+    ("to_id", "to_id"),
+    ("from_name", "from_name"),
+    ("to_name", "to_name"),
+    ("status", "status"),
+    ("message", "message"),
+    ("distance_km", "distance_km"),
+    ("accumulated_resistance", "accumulated_resistance"),
+    ("average_route_resistance", "average_route_resistance"),
+    ("explored_cells", "explored_cells"),
+    ("path_cells", "path_cells"),
+    ("from_snap_distance_m", "from_snap_distance_m"),
+    ("to_snap_distance_m", "to_snap_distance_m"),
+    ("from_longitude", "from_longitude"),
+    ("from_latitude", "from_latitude"),
+    ("to_longitude", "to_longitude"),
+    ("to_latitude", "to_latitude"),
+)
 
 GPKG_SCHEMA = {
     "geometry": "LineString",
@@ -28,6 +51,7 @@ GPKG_SCHEMA = {
         "status": "str",
         "distance_km": "float",
         "accumulated_resistance": "float",
+        "average_route_resistance": "float",
         "explored_cells": "int",
         "path_cells": "int",
         "from_snap_distance_m": "float",
@@ -51,10 +75,12 @@ def write_outputs(
     The outputs are:
 
     1. An updated copy of the input XLSX workbook. Successful entries in the
-       pipeline connection matrix are replaced with routed distances in km.
+       pipeline connection matrix are replaced with routed distances in km,
+       and a separate route-metrics sheet stores detailed routing indicators.
     2. A GeoPackage containing successful routes in the raster CRS.
 
-    Failed routes remain unchanged in the workbook.
+    Failed routes remain unchanged in the pipeline matrix and are recorded in
+    the route-metrics sheet with their status and diagnostic message.
 
     Returns
     -------
@@ -86,6 +112,7 @@ def write_outputs(
             output_path=temporary_workbook,
             pipeline_sheet=settings.pipeline_sheet,
             successful_records=successful_records,
+            route_records=route_records,
         )
 
         _write_geopackage(
@@ -138,6 +165,19 @@ def _successful_pipeline_records(
             record.get("distance_km"),
             f"distance_km for route {from_id} -> {to_id}",
         )
+        accumulated_resistance = _required_nonnegative_float(
+            record.get("accumulated_resistance"),
+            f"accumulated_resistance for route {from_id} -> {to_id}",
+        )
+        average_route_resistance = None
+        if distance_km > 0:
+            average_route_resistance = _required_nonnegative_float(
+                record.get("average_route_resistance"),
+                (
+                    "average_route_resistance for route "
+                    f"{from_id} -> {to_id}"
+                ),
+            )
 
         coordinates = _validate_coordinates(
             record.get("coordinates"),
@@ -150,6 +190,8 @@ def _successful_pipeline_records(
         copied["from_id"] = from_id
         copied["to_id"] = to_id
         copied["distance_km"] = distance_km
+        copied["accumulated_resistance"] = accumulated_resistance
+        copied["average_route_resistance"] = average_route_resistance
         copied["coordinates"] = coordinates
 
         successful.append(copied)
@@ -163,9 +205,10 @@ def _write_updated_workbook(
     output_path: Path,
     pipeline_sheet: str,
     successful_records: list[dict[str, Any]],
+    route_records: list[dict[str, Any]],
 ) -> None:
     """
-    Copy the input workbook and update successful pipeline-matrix entries.
+    Update the pipeline matrix and replace the separate route-metrics sheet.
 
     Existing formatting and all workbook sheets are retained.
     """
@@ -213,8 +256,97 @@ def _write_updated_workbook(
         cell.value = record["distance_km"]
         cell.number_format = "0.000"
 
+    _write_route_metrics_sheet(
+        workbook,
+        route_records=route_records,
+        pipeline_sheet=pipeline_sheet,
+    )
+
     workbook.save(output_path)
     workbook.close()
+
+
+def _write_route_metrics_sheet(
+    workbook,
+    *,
+    route_records: list[dict[str, Any]],
+    pipeline_sheet: str,
+) -> None:
+    """Replace the detailed sheet with one row per attempted pipeline route."""
+    if ROUTE_METRICS_SHEET == pipeline_sheet:
+        raise ValueError(
+            "The route-metrics sheet must differ from the pipeline matrix sheet"
+        )
+
+    if ROUTE_METRICS_SHEET in workbook.sheetnames:
+        workbook.remove(workbook[ROUTE_METRICS_SHEET])
+
+    sheet = workbook.create_sheet(ROUTE_METRICS_SHEET)
+    sheet.freeze_panes = "A2"
+
+    headers = [header for header, _ in ROUTE_METRICS_COLUMNS]
+    sheet.append(headers)
+
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+
+    for record in route_records:
+        if str(record.get("mode", "")).strip() != pipeline_sheet:
+            continue
+
+        sheet.append(
+            [
+                _metrics_cell_value(record.get(field))
+                for _, field in ROUTE_METRICS_COLUMNS
+            ]
+        )
+
+    sheet.auto_filter.ref = sheet.dimensions
+
+    numeric_formats = {
+        "distance_km": "0.000",
+        "accumulated_resistance": "0.000000",
+        "average_route_resistance": "0.000000",
+        "from_snap_distance_m": "0.000",
+        "to_snap_distance_m": "0.000",
+        "from_longitude": "0.00000000",
+        "from_latitude": "0.00000000",
+        "to_longitude": "0.00000000",
+        "to_latitude": "0.00000000",
+    }
+
+    for column_number, (header, _) in enumerate(
+        ROUTE_METRICS_COLUMNS,
+        start=1,
+    ):
+        if header in numeric_formats:
+            for row_number in range(2, sheet.max_row + 1):
+                sheet.cell(
+                    row=row_number,
+                    column=column_number,
+                ).number_format = numeric_formats[header]
+
+        values = [str(header)]
+        values.extend(
+            "" if value is None else str(value)
+            for row_number in range(2, sheet.max_row + 1)
+            for value in [
+                sheet.cell(
+                    row=row_number,
+                    column=column_number,
+                ).value
+            ]
+        )
+        sheet.column_dimensions[
+            sheet.cell(row=1, column=column_number).column_letter
+        ].width = min(max(len(value) for value in values) + 2, 45)
+
+
+def _metrics_cell_value(value: Any) -> Any:
+    """Return a scalar value that openpyxl can safely store in a cell."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
 
 
 def _matrix_columns(sheet) -> dict[str, int]:
@@ -353,6 +485,9 @@ def _route_properties(record: dict[str, Any]) -> dict[str, Any]:
         "distance_km": _optional_float(record.get("distance_km")),
         "accumulated_resistance": _optional_float(
             record.get("accumulated_resistance")
+        ),
+        "average_route_resistance": _optional_float(
+            record.get("average_route_resistance")
         ),
         "explored_cells": _optional_int(record.get("explored_cells")),
         "path_cells": _optional_int(record.get("path_cells")),

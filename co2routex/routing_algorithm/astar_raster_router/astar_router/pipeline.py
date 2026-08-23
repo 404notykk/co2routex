@@ -155,7 +155,19 @@ def _route_connection(
             route_cache[cache_key] = result
 
         # ResistanceRaster requires a projected CRS measured in metres.
-        distance_km = result.geometric_length_map_units / 1000.0
+        geometric_length_m = result.geometric_length_map_units
+        distance_km = geometric_length_m / 1000.0
+
+        # The A* accumulated resistance is the line integral of raster
+        # resistance along the route. Dividing by geometric route length
+        # gives the length-weighted mean resistance of the crossed pixels.
+        # A zero-length route can occur when two nodes snap to one cell; its
+        # average resistance is undefined and is therefore stored as None.
+        average_route_resistance = (
+            result.accumulated_resistance / geometric_length_m
+            if geometric_length_m > 0
+            else None
+        )
 
         record.update(
             {
@@ -164,6 +176,9 @@ def _route_connection(
                 "distance_km": distance_km,
                 "accumulated_resistance": (
                     result.accumulated_resistance
+                ),
+                "average_route_resistance": (
+                    average_route_resistance
                 ),
                 "explored_cells": result.explored_cells,
                 "path_cells": len(result.path),
@@ -188,6 +203,7 @@ def _route_connection(
                 "message": str(exc),
                 "distance_km": None,
                 "accumulated_resistance": None,
+                "average_route_resistance": None,
                 "explored_cells": None,
                 "path_cells": None,
                 "coordinates": None,
