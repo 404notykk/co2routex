@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import time
 from itertools import count
 
 import numpy as np
@@ -13,6 +14,52 @@ from .models import Cell, SearchResult
 
 class NoPathError(RuntimeError):
     """Raised when no traversable route exists between two raster cells."""
+
+
+class PreparedGrid:
+    """Validated, read-only arrays shared by searches. Do not mutate backing data.
+
+    Validation uses row chunks rather than copying every valid pixel at once.
+    Construct once per input raster, or let astar_search construct it for a
+    standalone call. Pipeline searches use search_prepared directly.
+    """
+    def __init__(self, resistance, traversable, transform):
+        self.resistance = np.asarray(resistance)
+        self.traversable = np.asarray(traversable, dtype=bool)
+        if self.resistance.ndim != 2 or self.traversable.shape != self.resistance.shape:
+            raise ValueError("Resistance and mask must be matching 2-D arrays")
+        if self.resistance.dtype.kind not in "fiu":
+            raise ValueError("Resistance must be real numeric values")
+        if not all(math.isfinite(v) for v in (transform.a, transform.b, transform.d, transform.e)):
+            raise ValueError("Invalid affine transform")
+        if transform.a * transform.e - transform.b * transform.d == 0:
+            raise ValueError("Singular affine transform")
+        self.minimum = math.inf
+        self.maximum = -math.inf
+        self.valid_cells = 0
+        for row in range(0, self.resistance.shape[0], 128):
+            values = self.resistance[row:row+128][self.traversable[row:row+128]]
+            if not values.size:
+                continue
+            if not np.isfinite(values).all() or np.any(values < 0):
+                raise ValueError("Traversable resistance must be finite and non-negative")
+            self.minimum = min(self.minimum, float(values.min()))
+            self.maximum = max(self.maximum, float(values.max()))
+            self.valid_cells += values.size
+        if not self.valid_cells:
+            raise ValueError("Raster has no traversable cells")
+        self.transform = transform
+        self.resistance.flags.writeable = False
+        self.traversable.flags.writeable = False
+
+
+def astar_search(resistance, traversable, transform, start, goal, *,
+                 connectivity=8, prevent_corner_cutting=True, metrics=None):
+    """Safe standalone entry: validates new arrays, then runs exact A*."""
+    return search_prepared(PreparedGrid(resistance, traversable, transform),
+                           start, goal, connectivity=connectivity,
+                           prevent_corner_cutting=prevent_corner_cutting,
+                           metrics=metrics)
 
 
 def _distance(transform, a: Cell, b: Cell) -> float:
@@ -119,15 +166,14 @@ def _validate_inputs(
         )
 
 
-def astar_search(
-    resistance: np.ndarray,
-    traversable: np.ndarray,
-    transform,
+def search_prepared(
+    grid: PreparedGrid,
     start: Cell,
     goal: Cell,
     *,
     connectivity: int = 8,
     prevent_corner_cutting: bool = True,
+    metrics: dict | None = None,
 ) -> SearchResult:
     """Find a spatially least-resistant path across a raster.
 
@@ -173,13 +219,21 @@ def astar_search(
     NoPathError
         If no traversable route exists between the start and goal cells.
     """
-    resistance = np.asarray(resistance)
-    traversable = np.asarray(traversable, dtype=bool)
-
+    prepare_started = time.perf_counter()
+    metrics = metrics if metrics is not None else {}
+    resistance, traversable, transform = grid.resistance, grid.traversable, grid.transform
     directions = _neighbours(connectivity)
-    _validate_inputs(resistance, traversable, start, goal)
+    for label, cell in (("start", start), ("goal", goal)):
+        row, col = cell
+        if not (0 <= row < resistance.shape[0] and 0 <= col < resistance.shape[1]):
+            raise ValueError(f"{label} cell is outside the raster")
+        if not traversable[row, col]:
+            raise ValueError(f"{label} cell is not traversable")
 
     if start == goal:
+        metrics.update(search_setup_wall_s=time.perf_counter()-prepare_started,
+                       search_wall_s=0.0, path_build_wall_s=0.0,
+                       explored_cells=1, discovered_cells=1, queue_peak_entries=1)
         return SearchResult(
             [start],
             0.0,
@@ -187,7 +241,9 @@ def astar_search(
             1,
         )
 
-    minimum_resistance = float(np.min(resistance[traversable]))
+    minimum_resistance = grid.minimum
+    step_lengths = {direction: _distance(transform, (0, 0), direction)
+                    for direction in directions}
 
     serial = count()
 
@@ -209,6 +265,9 @@ def astar_search(
     }
     parent: dict[Cell, Cell] = {}
     closed: set[Cell] = set()
+    peak_queue = 1
+    metrics["search_setup_wall_s"] = time.perf_counter() - prepare_started
+    search_started = time.perf_counter()
 
     while queue:
         _, _, current = heapq.heappop(queue)
@@ -219,6 +278,10 @@ def astar_search(
         closed.add(current)
 
         if current == goal:
+            metrics.update(search_wall_s=time.perf_counter()-search_started,
+                           explored_cells=len(closed), discovered_cells=len(best_accumulated_resistance),
+                           queue_peak_entries=peak_queue)
+            build_started = time.perf_counter()
             path = _reconstruct(parent, goal)
 
             length_map_units = sum(
@@ -226,12 +289,14 @@ def astar_search(
                 for first, second in zip(path, path[1:])
             )
 
-            return SearchResult(
+            result = SearchResult(
                 path,
                 best_accumulated_resistance[goal],
                 length_map_units,
                 len(closed),
             )
+            metrics["path_build_wall_s"] = time.perf_counter() - build_started
+            return result
 
         row, column = current
 
@@ -267,11 +332,7 @@ def astar_search(
             ):
                 continue
 
-            step_length = _distance(
-                transform,
-                current,
-                neighbour,
-            )
+            step_length = step_lengths[(row_offset, column_offset)]
 
             edge_resistance = (
                 float(resistance[row, column])
@@ -319,7 +380,11 @@ def astar_search(
                     neighbour,
                 ),
             )
+            peak_queue = max(peak_queue, len(queue))
 
+    metrics.update(search_wall_s=time.perf_counter()-search_started,
+                   path_build_wall_s=0.0, explored_cells=len(closed),
+                   discovered_cells=len(best_accumulated_resistance), queue_peak_entries=peak_queue)
     raise NoPathError(
         f"No traversable path from {start} to {goal}"
     )

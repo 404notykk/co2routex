@@ -1,8 +1,8 @@
-numpy>=1.26
-pandas>=2.1
-rasterio>=1.3.9
-pyproj>=3.6
-PyYAML>=6.0
+numpy>=1.24
+pandas>=2.0
+rasterio>=1.3
+pyproj>=3.4
 openpyxl>=3.1
-pytest>=8.0
-
+fiona>=1.9
+PyYAML>=6.0
+psutil>=5.9

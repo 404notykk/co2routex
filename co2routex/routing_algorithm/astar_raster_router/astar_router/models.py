@@ -182,6 +182,54 @@ class SearchResult:
 
 
 @dataclass(frozen=True, slots=True)
+class RunTiming:
+    """Elapsed wall-clock times and route counts for one router run."""
+
+    excel_reading_s: float
+    raster_loading_s: float
+    preprocessing_s: float
+    routing_loop_s: float
+    total_astar_s: float
+    output_writing_s: float
+    measured_runtime_s: float
+    total_connections: int
+    successful_connections: int
+    computed_routes: int
+    cached_routes: int
+    failed_routes: int
+
+    def __post_init__(self) -> None:
+        """Validate timing measurements and counters."""
+        for field_name in (
+            "excel_reading_s",
+            "raster_loading_s",
+            "preprocessing_s",
+            "routing_loop_s",
+            "total_astar_s",
+            "output_writing_s",
+            "measured_runtime_s",
+        ):
+            value = getattr(self, field_name)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(
+                    f"{field_name} must be a finite non-negative number"
+                )
+
+        for field_name in (
+            "total_connections",
+            "successful_connections",
+            "computed_routes",
+            "cached_routes",
+            "failed_routes",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{field_name} must be an integer")
+            if value < 0:
+                raise ValueError(f"{field_name} cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Validated configuration for one A* routing run."""
 
@@ -202,12 +250,16 @@ class Settings:
 
     connectivity: int = 8
     prevent_corner_cutting: bool = True
-    snap_radius_cells: int = 10
+    snap_radius_cells: int = 0
     zero_is_barrier: bool = False
-    cache_reverse_routes: bool = True
+    cache_reverse_routes: bool = False
+    cache_max_routes: int = 0
+    rss_sample_interval_s: float = 0.05
 
     output_workbook_name: str = "node_metrics_routed.xlsx"
     routes_filename: str = "routes.gpkg"
+    route_timings_filename: str = "route_timing_results.csv"
+    run_timings_filename: str = "run_timing_summary.csv"
 
     def __post_init__(self) -> None:
         """Validate configuration values independent of file existence."""
@@ -317,10 +369,12 @@ class Settings:
                 "snap_radius_cells must be an integer"
             )
 
-        if self.snap_radius_cells < 0:
-            raise ValueError(
-                "snap_radius_cells cannot be negative"
-            )
+        if self.snap_radius_cells != 0:
+            raise ValueError("Strict onshore routing requires snap_radius_cells: 0")
+        if isinstance(self.cache_max_routes, bool) or not isinstance(self.cache_max_routes, int) or self.cache_max_routes < 0:
+            raise ValueError("cache_max_routes must be a non-negative integer")
+        if not math.isfinite(self.rss_sample_interval_s) or self.rss_sample_interval_s < 0.01:
+            raise ValueError("rss_sample_interval_s must be at least 0.01 seconds")
 
         if not isinstance(self.prevent_corner_cutting, bool):
             raise TypeError(
@@ -365,3 +419,13 @@ class Settings:
             raise ValueError(
                 "routes_filename must use the .gpkg extension"
             )
+
+        for field_name in (
+            "route_timings_filename",
+            "run_timings_filename",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} cannot be blank")
+            if Path(value).suffix.lower() != ".csv":
+                raise ValueError(f"{field_name} must use the .csv extension")

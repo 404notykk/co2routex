@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -12,13 +13,14 @@ from pyproj import CRS, Transformer
 from rasterio.transform import rowcol, xy
 
 from .models import Cell, Node
+from .astar import PreparedGrid
 
 
 class ResistanceRaster:
     """
     A single-band spatial resistance raster used for A* routing.
 
-    Finite raster cells are traversable unless zero-valued cells are
+    Finite unmasked raster cells are traversable unless zero-valued cells are
     configured as barriers. NoData, NaN and infinite cells are always
     treated as barriers.
 
@@ -36,6 +38,7 @@ class ResistanceRaster:
         if not self.path.exists():
             raise FileNotFoundError(self.path)
 
+        started = time.perf_counter()
         with rasterio.open(self.path) as source:
             if source.count != 1:
                 raise ValueError(
@@ -50,42 +53,45 @@ class ResistanceRaster:
             crs = CRS.from_user_input(source.crs)
             _validate_metric_projected_crs(crs)
 
-            masked = source.read(1, masked=True)
-            resistance = masked.astype(np.float64).filled(np.nan)
-
-            self.resistance = np.asarray(
-                resistance,
-                dtype=np.float64,
-            )
+            if source.dtypes[0] != "float32":
+                raise ValueError("Expected a Float32 resistance file; no silent precision conversion is applied")
+            self.resistance = source.read(1)
+            raw_mask = source.read_masks(1)
             self.transform = source.transform
             self.crs = crs
             self.width = source.width
             self.height = source.height
             self.nodata = source.nodata
+            self.metadata = dict(raster_path=str(self.path), width_cells=self.width,
+                                 height_cells=self.height, disk_dtype=source.dtypes[0],
+                                 memory_dtype=str(self.resistance.dtype), crs=source.crs.to_wkt(),
+                                 compression=source.compression.value if source.compression else "NONE",
+                                 block_rows=source.block_shapes[0][0], block_columns=source.block_shapes[0][1],
+                                 cell_x_m=source.res[0], cell_y_m=source.res[1], nodata=source.nodata,
+                                 file_size_mib=self.path.stat().st_size / 2**20)
+        self.read_wall_s = time.perf_counter() - started
+        started = time.perf_counter()
 
         if self.resistance.ndim != 2:
             raise ValueError(
                 "The resistance raster must be two-dimensional"
             )
 
-        finite = np.isfinite(self.resistance)
-
-        if np.any(self.resistance[finite] < 0):
-            minimum = float(np.min(self.resistance[finite]))
-            raise ValueError(
-                "Negative spatial resistance values are not supported; "
-                f"minimum value found: {minimum}"
-            )
-
-        self.traversable = finite.copy()
-
-        if zero_is_barrier:
-            self.traversable &= self.resistance > 0
-
-        if not self.traversable.any():
-            raise ValueError(
-                "The resistance raster contains no traversable cells"
-            )
+        self.traversable = raw_mask != 0
+        del raw_mask
+        for row in range(0, self.height, 128):
+            values = self.resistance[row:row+128]
+            valid = self.traversable[row:row+128]
+            valid &= np.isfinite(values)
+            if np.any(values[valid] < 0):
+                raise ValueError("Negative resistance values are not supported")
+            if zero_is_barrier:
+                valid &= values > 0
+        self.grid = PreparedGrid(self.resistance, self.traversable, self.transform)
+        self.prepare_wall_s = time.perf_counter() - started
+        self.metadata.update(minimum_resistance=self.grid.minimum, maximum_resistance=self.grid.maximum,
+                             valid_cells=int(self.grid.valid_cells), resistance_array_mib=self.resistance.nbytes / 2**20,
+                             mask_array_mib=self.traversable.nbytes / 2**20, search_domain="full_valid_raster")
 
     def node_cells(
         self,
@@ -94,15 +100,14 @@ class ResistanceRaster:
         snap_radius_cells: int,
     ) -> dict[str, dict[str, Any]]:
         """
-        Transform nodes into the raster CRS and assign raster cells.
+        Transform nodes and require valid containing cells, without snapping.
 
-        A node falling on a non-traversable cell is moved to the nearest
-        traversable cell within ``snap_radius_cells``.
+        snap_radius_cells is retained as a compatibility setting, but must be
+        zero. The returned legacy snap_distance_m measures only the offset to
+        the containing cell center; reports use cell_center_offset_m.
         """
-        if snap_radius_cells < 0:
-            raise ValueError(
-                "snap_radius_cells cannot be negative"
-            )
+        if snap_radius_cells != 0:
+            raise ValueError("Strict node validation requires snap_radius_cells: 0")
 
         source_crs = CRS.from_user_input(nodes_crs)
 
@@ -133,11 +138,10 @@ class ResistanceRaster:
                     f"Node {node_id} falls outside the resistance raster"
                 )
 
-            snapped_cell = self.snap(
-                original_cell,
-                snap_radius_cells,
-                target_xy=(x, y),
-            )
+            if not self.traversable[original_cell]:
+                raise ValueError(f"Node {node_id} ({node.node_name}) falls on NoData/prohibited cell "
+                                 f"{original_cell}; no snapping is allowed. Check coordinates and raster coverage.")
+            snapped_cell = original_cell
 
             snapped_x, snapped_y = self.cell_xy(snapped_cell)
 
