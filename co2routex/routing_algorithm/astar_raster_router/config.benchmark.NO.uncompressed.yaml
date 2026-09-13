@@ -1,0 +1,22 @@
+# All paths are relative to this YAML file.
+# Strict onshore nodes: invalid containing cells abort the run; no snapping.
+raster_path: "../../database/pipeline/spatial_cost_resistance/spatial_resistance_NO_cropped_uncompressed.tif"
+workbook_path: "examples/node_metrics_benchmark_NO.xlsx"
+output_dir: "benchmark_output_NO_uncompressed"
+nodes_sheet: nodes
+pipeline_sheet: pipeline
+mode_sheets: [pipeline]
+nodes_crs: EPSG:4326
+connectivity: 8
+prevent_corner_cutting: true
+snap_radius_cells: 0
+zero_is_barrier: false
+cache_max_routes: 0
+cache_reverse_routes: false
+rss_sample_interval_s: 0.05
+output_workbook_name: node_metrics_routed.xlsx
+routes_filename: routes.gpkg
+
+benchmark:
+  warmup_runs: 0
+  repetitions: 1
