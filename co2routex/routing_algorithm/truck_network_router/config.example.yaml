@@ -28,7 +28,7 @@ networks:
 routing:
   # Temporary value: tune after inspecting node-to-network distances.
   maximum_snap_distance_m: 5000
-  respect_oneway: true
+  respect_oneway: false
 
   # Add straight node-to-network connectors to the metric stored in the sheet.
   include_snap_distance_in_metric: true
@@ -37,7 +37,7 @@ connection_rules:
   # baseline: all distinct same-country ordered pairs
   # directed_chain: emitters -> emitters/transport/storage;
   #                 transport -> transport/storage; storage -> none
-  policy: baseline
+  policy: directed_chain
 
   # generated: build candidates using the embedded rules above
   # existing_nonzero: route only cells already non-zero in the truck sheet

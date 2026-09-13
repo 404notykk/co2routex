@@ -24,11 +24,11 @@ def is_eligible_pair(
     if origin.country_code != destination.country_code:
         return False
 
-    if existing_nonzero_pairs is not None:
-        return (
+    if existing_nonzero_pairs is not None and (
             id_key(origin.node_id),
             id_key(destination.node_id),
-        ) in existing_nonzero_pairs
+        ) not in existing_nonzero_pairs:
+            return False
 
     if policy == "baseline":
         return True

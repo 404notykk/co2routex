@@ -49,7 +49,7 @@ def load_settings(config_path: str | Path) -> Settings:
     rules = raw.get("connection_rules", {})
     outputs = raw.get("outputs", {})
 
-    connection_policy = str(rules.get("policy", "baseline")).lower()
+    connection_policy = str(rules.get("policy", "directed_chain")).lower()
     if connection_policy not in {"baseline", "directed_chain"}:
         raise ValueError(
             "connection_rules.policy must be 'baseline' or 'directed_chain'"
