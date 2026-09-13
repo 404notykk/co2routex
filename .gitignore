@@ -208,3 +208,47 @@ __marimo__/
 
 # Microsoft Office temporary files
 ~$*
+
+# Large resistance rasters shared separately
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_DE.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_DE_cropped.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_DE_cropped_uncompressed.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NL.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NL_cropped.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NL_cropped_uncompressed.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NO.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NO_cropped.tif
+/co2routex/database/pipeline/spatial_cost_resistance/spatial_resistance_NO_cropped_uncompressed.tif
+
+# Large container-based transport networks shared separately
+/co2routex/database/container_based_train/DE_railways.gpkg
+/co2routex/database/container_based_train/NL_railways.gpkg
+/co2routex/database/container_based_train/NO_railways.gpkg
+
+/co2routex/database/container_based_truck/DE_truck_network.gpkg
+/co2routex/database/container_based_truck/NL_truck_network.gpkg
+/co2routex/database/container_based_truck/NO_truck_network.gpkg
+
+# macOS and local PyCharm settings
+.DS_Store
+/.idea/
+
+# Raw data: keep folder placeholders and README files
+/co2routex/database/pipeline/raw_data/**
+!/co2routex/database/pipeline/raw_data/**/
+!/co2routex/database/pipeline/raw_data/**/.gitkeep
+!/co2routex/database/pipeline/raw_data/**/README.md
+
+# Generated pipeline routing and benchmark outputs
+/co2routex/routing_algorithm/astar_raster_router/benchmark_output_*/
+/co2routex/routing_algorithm/astar_raster_router/output/
+
+# Generated truck routing outputs
+/co2routex/routing_algorithm/truck_network_router/output_*/
+
+
+# Generated visualisation images
+/co2routex/visualisation/benchmark_routes_comparison.png
+/co2routex/visualisation/pipeline_routing_comparison.png
+/co2routex/visualisation/truck_routing_visualisation.png
+
