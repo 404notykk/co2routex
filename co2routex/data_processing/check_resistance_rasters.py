@@ -15,7 +15,7 @@ import rasterio
 from pyproj import CRS
 from rasterio.windows import Window
 
-RASTER_DIR = Path(__file__).resolve().parents[2] / "database/pipeline/spatial_cost_resistance"
+RASTER_DIR = Path(__file__).resolve().parent.parent / "database/pipeline/spatial_cost_resistance"
 RASTER_PATHS = [RASTER_DIR / f"spatial_resistance_{c}.tif" for c in ("NL", "DE", "NO")]
 WRITE_CROPPED = True
 
