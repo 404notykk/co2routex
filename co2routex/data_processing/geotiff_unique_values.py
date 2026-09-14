@@ -21,7 +21,7 @@ except ImportError as exc:
 # -----------------------------------------------------------------------------
 # USER SETTINGS
 # -----------------------------------------------------------------------------
-RASTER_PATH = Path("../database/pipeline/spatial_cost_resistance/SCRM_100_NL.tif")
+RASTER_PATH = Path("../database/pipeline/spatial_cost_resistance/spatial_resistance_NL.tif")
 BAND_NUMBER = 1
 NUMBER_TO_SHOW = 50
 INTEGER_TOLERANCE = 1e-6
