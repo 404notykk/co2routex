@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "co2routex-container-transport-cost-model"
-version = "0.1.0"
+version = "0.3.0"
 description = "Simplified route-specific truck and railway CO2 transport costs"
 requires-python = ">=3.10"
-dependencies = ["openpyxl>=3.1", "PyYAML>=6.0"]
+dependencies = ["openpyxl>=3.1", "PyYAML>=6.0", "pyarrow>=12"]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+test = ["pytest>=8.0", "pandas>=1.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

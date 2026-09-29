@@ -1,0 +1,29 @@
+# Set this to your actual .parquet or .geoparquet file.
+input_path: ../../database/source_sink/routed_truck/routes_NL.parquet
+input_layout: routes
+output_dir: outputs/container_costs
+
+# Match the actual column names. Stable IDs can be used instead of names.
+from_id_column: emitter_name
+to_id_column: sink_name
+distance_column: distance_km
+annual_flow_column: co2_t_per_yr
+mode_column: mode  # road/truck -> truck; rail/train/railway -> railway
+status_column: status
+accepted_statuses: [ok]
+
+# If the file has no mode column, use the truck/railway launcher, or set
+# default_transport_mode explicitly to truck or railway. Never infer from filenames.
+default_transport_mode: null
+annual_flow_t_per_year: null
+require_annual_flow: false
+input_row: null
+write_xlsx: true
+write_costed_input: true
+currency: EUR
+cost_reference_year: 2021
+# null reproduces AdOpT-NET0 0.1.10: factor 1.2089189250619368.
+# Its index snapshot covers Jan-Dec 2021 and Jan-Nov 2024 (11 months).
+# To use another verified factor, set BOTH the factor and its source/coverage.
+eur2021_to_eur2024_factor: null
+eur2024_factor_source: null

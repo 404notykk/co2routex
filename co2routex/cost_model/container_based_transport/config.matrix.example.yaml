@@ -1,0 +1,27 @@
+# Original square directed distance-matrix layout.
+workbook_path: ../../routing_algorithm/astar_raster_router/output/node_metrics_routed.xlsx
+input_layout: matrix
+output_dir: outputs/container_costs
+truck_sheet: truck
+railway_sheet: railway
+
+# Optional tCO2/year matrices with exactly the same row/column IDs and order.
+truck_annual_flow_sheet: null
+railway_annual_flow_sheet: null
+# Alternatively supply one explicit scenario flow for all eligible connections.
+# Annual costs stay blank if neither per-pair flow nor this fallback is supplied.
+annual_flow_t_per_year: null
+require_annual_flow: false
+
+combined_output_workbook: node_metrics_transport_costed.xlsx
+truck_output_workbook: node_metrics_truck_costed.xlsx
+railway_output_workbook: node_metrics_railway_costed.xlsx
+write_xlsx: true
+write_costed_input: true
+currency: EUR
+cost_reference_year: 2021
+# null reproduces AdOpT-NET0 0.1.10: factor 1.2089189250619368.
+# Its index snapshot covers Jan-Dec 2021 and Jan-Nov 2024 (11 months).
+# To use another verified factor, set BOTH the factor and its source/coverage.
+eur2021_to_eur2024_factor: null
+eur2024_factor_source: null

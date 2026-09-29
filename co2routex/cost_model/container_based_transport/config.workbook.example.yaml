@@ -1,9 +1,7 @@
-# Runnable example; paths are relative to this file.
-input_path: examples/transport_routes.csv
+input_path: /path/to/transport_routes.xlsx
 input_layout: routes
 route_metrics_sheet: transport_route_metrics
 output_dir: outputs/container_costs
-
 from_id_column: from_id
 to_id_column: to_id
 distance_column: distance_km
@@ -11,23 +9,13 @@ annual_flow_column: annual_flow_t_per_year
 mode_column: mode
 status_column: status
 accepted_statuses: [ok]
-
-# Explicit fallback only; row-level flow takes priority. No flow is guessed.
+default_transport_mode: null
 annual_flow_t_per_year: null
 require_annual_flow: false
-default_transport_mode: null
 input_row: null
-
 write_xlsx: true
 write_costed_input: true
-
-# These are per-tonne regression intercepts, NOT annual fixed costs.
-truck_fixed_eur_per_t: 5.58
-truck_distance_rate_eur_per_t_km: 0.15
-railway_fixed_eur_per_t: 28.9
-railway_distance_rate_eur_per_t_km: 0.07
 currency: EUR
-# Source regression price year. Extra EUR 2024 columns are produced automatically.
 cost_reference_year: 2021
 # null reproduces AdOpT-NET0 0.1.10: factor 1.2089189250619368.
 # Its index snapshot covers Jan-Dec 2021 and Jan-Nov 2024 (11 months).

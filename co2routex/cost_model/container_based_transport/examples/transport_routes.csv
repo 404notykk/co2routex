@@ -1,0 +1,5 @@
+from_id,to_id,mode,distance_km,annual_flow_t_per_year,status
+001,002,truck,100,100000,ok
+001,002,railway,100,100000,ok
+003,004,truck,500,250000,ok
+003,004,railway,500,250000,ok

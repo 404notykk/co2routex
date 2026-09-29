@@ -1,4 +1,4 @@
-"""Read distance matrices and write coefficient matrices."""
+"""Legacy coefficient-only matrix helpers; annual-cost exports use outputs.py."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def read_coefficients(
     config: TransportCostConfig,
     mode: str,
 ) -> tuple[list[str], list[PairCoefficient]]:
-    workbook = load_workbook(config.workbook_path, read_only=True, data_only=True)
+    workbook = load_workbook(config.source_path, read_only=True, data_only=True)
     try:
         sheet_name = config.source_sheet(mode)
         if sheet_name not in workbook.sheetnames:
@@ -79,13 +79,13 @@ def write_output(
 ) -> Path:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     output_path = config.output_dir / config.output_name(modes)
-    if output_path.resolve() == config.workbook_path.resolve():
+    if output_path.resolve() == config.source_path.resolve():
         raise ValueError("Output workbook must not overwrite the input workbook")
     temporary_path = output_path.with_name(
         f".{output_path.stem}.{uuid4().hex}{output_path.suffix}"
     )
     try:
-        shutil.copy2(config.workbook_path, temporary_path)
+        shutil.copy2(config.source_path, temporary_path)
         workbook = load_workbook(temporary_path)
         try:
             for mode in modes:
