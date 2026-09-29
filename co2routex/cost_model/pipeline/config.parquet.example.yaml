@@ -1,0 +1,50 @@
+# Replace this with the actual Parquet/GeoParquet filename.
+# Relative paths are resolved against this YAML file's directory.
+input_path: ../../database/source_sink/routed_pipeline/routes_NL.parquet
+output_dir: outputs/pipeline_costs/NL_test
+mode: both
+coefficient_method: fixed_design
+
+# Column names. No renaming/conversion is needed.
+from_id_column: emitter_name
+to_id_column: sink_name
+distance_column: distance_km
+annual_flow_column: co2_t_per_yr
+resistance_column: average_route_resistance  # Routing metadata only; no financial effect.
+
+# Stable IDs may be used instead of names:
+# from_id_column: emitter_id
+# to_id_column: sink_id
+# If the actual flow column is co2_per_yr, use that exact spelling above.
+
+# null = all eligible rows. --row N overrides this value.
+# Row 1 is the first stored data row, before mode/status filters; not a pandas index label.
+input_row: null
+write_xlsx: true           # One report workbook.
+write_costed_input: true   # Original format: nine existing result fields plus four EUR 2024 fields.
+write_csv: false           # Optional tables, off by default.
+write_json: false          # Optional structured report, off by default.
+
+# Set these assumptions for your scenario. Geometry does not infer terrain.
+terrain: Onshore
+timeframe: mid-term
+electricity_price_eur_per_mwh: 60.0  # Scenario assumption in EUR 2021/MWh.
+electricity_price_reference_year: 2021
+operating_hours_per_year: 8000.0
+p_inlet_bar: 10.0
+p_outlet_bar: 70.0
+discount_rate: 0.10
+currency: EUR
+cost_reference_year: 2021  # Internal data stay EUR 2021; new outputs also show EUR 2024.
+
+# Default matches the updated container package / AdOpT-NET0 PPI snapshot.
+# Factor = 1.208918925061937; 2021 Jan-Dec, 2024 Jan-Nov (December absent).
+# A custom factor must be finite and positive and have a nonblank source below.
+eur2021_to_eur2024_factor: null
+eur2024_factor_source: null
+
+# fixed_design uses this row's annual flow. No fitting bounds/samples are needed.
+# For a fit across re-sized designs, use coefficient_method: flow_range and
+# explicitly set annual_flow_min_t_per_year and annual_flow_max_t_per_year.
+
+# Costs use physical routed kilometres; no resistance multiplier is applied.

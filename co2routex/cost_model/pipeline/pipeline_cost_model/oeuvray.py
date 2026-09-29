@@ -152,7 +152,7 @@ class CO2Transport_Oeuvray:
                 self.steel_data["available_long_term"] == 1
             ]
         else:
-            ValueError("Time frame not available")
+            raise ValueError("Time frame not available")
 
     def _calculate_pipeline_configuration(
         self, pinlet_mpa, poutlet_mpa, id_calc_m, delta_p_inlet
@@ -830,7 +830,7 @@ class CO2Transport_Oeuvray:
         id_nps_m = best_steel_grade_config["id_nps_m"].iloc[0]
         v_m_per_s = self._calculate_velocity(id_nps_m)
         current_result = {}
-        current_result["lc"] = 1e10
+        current_result["lc"] = math.inf
 
         if (v_m_per_s >= terrain_data["vRange_min"]) & (
             v_m_per_s <= terrain_data["vRange_max"]
@@ -866,7 +866,7 @@ class CO2Transport_Oeuvray:
                     p_outlet_last_pump_pa * 1e-6, poutlet_mpa
                 )
                 e_comp_MJ_per_kg_total = (
-                    e_comp_MJ_per_kg_last + e_comp_MJ_per_kg_all_but_last * n_pumps
+                    e_comp_MJ_per_kg_last + e_comp_MJ_per_kg_all_but_last * (n_pumps - 1)
                 )
                 w_recompressor_all_but_last_MW = (
                     e_comp_MJ_per_kg_all_but_last * self.m_kg_per_s
@@ -940,7 +940,9 @@ class CO2Transport_Oeuvray:
             current_result["opex_fix_compression"] = (
                 capex_recompression_eur + capex_initial_compression_eur
             ) * self.universal_data["muOMpumpcomp"]
-            current_result["opex_fix"] = current_result["opex_fix_compression"]
+            current_result["opex_fix"] = (
+                current_result["opex_pipe"] + current_result["opex_fix_compression"]
+            )
             current_result["opex_var_energy"] = (
                 current_result["opex_energy_recompression"]
                 + current_result["opex_energy_initial_compression"]
@@ -956,6 +958,19 @@ class CO2Transport_Oeuvray:
             current_result["energy_compression_specific_MWh_per_t"] = (
                 current_result["energy_compression_specific_MWh_per_kg"] * 1000
             )
+
+            # Retain the winning design's engineering and cost components.
+            for component in ("material", "labor", "row", "misc"):
+                current_result["capex_" + component] = float(
+                    best_steel_grade_config[component].iloc[0]
+                )
+            current_result["od_nps_m"] = float(best_steel_grade_config["od_nps_m"].iloc[0])
+            current_result["wall_thickness_m"] = float(best_steel_grade_config["t_m"].iloc[0])
+            current_result["initial_compression_power_mw"] = w_initial_compression_mw
+            current_result["booster_power_mw"] = w_recompression_mw_total
+            current_result["initial_compression_specific_mwh_per_t"] = e_initial_compression_Mj_per_kg / 3.6
+            current_result["booster_specific_mwh_per_t"] = e_comp_MJ_per_kg_total / 3.6
+            current_result["initial_discharge_mpa"] = p_2
 
             # Design
             current_result["steel_grade"] = best_steel_grade_config.index[0]
@@ -1010,12 +1025,12 @@ class CO2Chain_Oeuvray(CO2Transport_Oeuvray):
 
         self._preprocess_data()
 
-        self.current_best_results["lc"] = 1e3
+        self.current_best_results = {"lc": math.inf}
 
-        if options["p_outlet_bar"] / 10 * 10e6 < 3e6:
+        if options["p_outlet_bar"] * 1e5 < 3e6:
             self.force_phase = "gas"
             poutlet_mpa = options["p_outlet_bar"] / 10
-        elif options["p_outlet_bar"] / 10 * 10e6 >= 3e6:
+        elif options["p_outlet_bar"] * 1e5 >= 3e6:
             self.force_phase = "liquid"
             poutlet_mpa = options["p_outlet_bar"] / 10
         else:
@@ -1060,8 +1075,14 @@ class CO2Chain_Oeuvray(CO2Transport_Oeuvray):
             )
 
         # Financial indicators
+        if "capex_pipe" not in optimal_configuration:
+            raise ValueError(
+                "The engineering search returned no feasible candidate for "
+                f"{self.length_km:g} km and {self.m_kg_per_s:g} kg/s. "
+                "No different flow has been substituted."
+            )
         self.optimal_configuration = optimal_configuration
-        self.lifetime = min(self.universal_data)
+        self.lifetime = min(self.universal_data["z_pipe"], self.universal_data["z_pumpcomp"])
         self.unit_capex = None
         self.opex_fix = None
         self.opex_var = None
@@ -1080,9 +1101,7 @@ class CO2Chain_Oeuvray(CO2Transport_Oeuvray):
         cost_pipeline = {}
         cost_pipeline["unit_capex"] = self.optimal_configuration["capex_pipe"]
         cost_pipeline["opex_var"] = 0
-        cost_pipeline["opex_fix_abs"] = self.optimal_configuration[
-            "opex_fix_compression"
-        ]
+        cost_pipeline["opex_fix_abs"] = self.optimal_configuration["opex_pipe"]
         cost_pipeline["opex_fix_fraction"] = self.optimal_configuration["opex_pipe"] / (
             cost_pipeline["unit_capex"]
         )
@@ -1183,7 +1202,7 @@ class CO2Compression_Oeuvray(CO2Transport_Oeuvray):
             / ((1 + self.discount_rate) ** self.universal_data["z_pumpcomp"] - 1)
         )
 
-        self.lifetime = min(self.universal_data)
+        self.lifetime = min(self.universal_data["z_pipe"], self.universal_data["z_pumpcomp"])
         self.unit_capex = capex_compression_eur
         self.opex_fix = opex_fix / capex_compression_eur
         self.opex_var = 0

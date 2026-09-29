@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "co2routex-pipeline-cost-model"
-version = "0.1.0"
-description = "Route-specific CO2 pipeline CAPEX coefficients for CO2RouteX"
+version = "0.5.0"
+description = "Direct CO2 pipeline benchmarks and route-specific annual transport cost approximations"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "openpyxl>=3.1", "pandas>=2.0", "PyYAML>=6.0"]
+dependencies = ["numpy>=1.24", "openpyxl>=3.1", "pandas>=2.0", "pyarrow>=12", "PyYAML>=6.0"]
 
 [tool.setuptools.package-data]
 pipeline_cost_model = ["data/*.xlsx", "data/*.json"]

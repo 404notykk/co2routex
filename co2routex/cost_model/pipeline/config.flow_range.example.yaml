@@ -6,13 +6,20 @@ output_workbook_name: pipeline_cost_results.xlsx
 
 # approximation | benchmark | both
 mode: both
-coefficient_method: fixed_design
+coefficient_method: flow_range
 annual_flow_column: annual_flow_t_per_year
 input_row: null  # All eligible rows; --row N runs only data row N (first = 1).
 
-# Size once at each row's annual flow, then derive F and v from its cost breakdown.
-# No flow bounds or fitting settings are used with fixed_design.
-# See config.flow_range.example.yaml for the optional fit across re-sized designs.
+# Defaults for rows without their own bounds. All bounds are tonnes CO2/year.
+annual_flow_min_t_per_year: 500000.0
+annual_flow_max_t_per_year: 2000000.0
+
+# endpoints preserves the two-point method; intermediate points check its error.
+# least_squares fits all fit_samples engineering evaluations instead.
+fit_method: endpoints
+fit_samples: 9
+validation_samples: 8
+fit_error_warning_percent: 10.0
 write_xlsx: true           # One report workbook.
 write_costed_input: true   # Original format: nine existing result fields plus four EUR 2024 fields.
 write_csv: false           # Optional tables, off by default.
